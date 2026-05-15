@@ -10,7 +10,7 @@
 const KNOCK_CONFIG = {
   // useTestWebhook: true  → 테스트 URL (n8n 워크플로우 Inactive 상태 / 개발 중)
   // useTestWebhook: false → 프로덕션 URL (n8n 워크플로우 Active 상태 / 데모 당일)
-  useTestWebhook: true,
+  useTestWebhook: false,
 
   webhookUrl: {
     test:       'https://wontaeryu.app.n8n.cloud/webhook-test/knox-message',
