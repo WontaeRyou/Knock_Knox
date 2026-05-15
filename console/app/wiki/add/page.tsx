@@ -139,7 +139,7 @@ function WikiAddInner() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0C0F] text-white font-[\"Noto_Sans_KR\",sans-serif]">
+    <div className="min-h-screen bg-[#0A0C0F] text-white font-[Noto_Sans_KR,sans-serif]">
       <div className="max-w-[480px] mx-auto px-5 py-6">
         <header className="mb-6">
           <h1 className="text-xl font-bold tracking-tight">📝 Wiki에 추가하기</h1>

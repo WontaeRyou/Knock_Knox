@@ -4,13 +4,12 @@
 // 현업 담당자가 사용하는 AI 초안 검수 콘솔.
 // n8n에서 처리한 결과가 Supabase Realtime을 통해 실시간으로 표시됩니다.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createBrowserClient, type Inquiry } from '@/lib/supabase';
 
 type ConnState = 'connecting' | 'connected' | 'error';
 
 export default function ConsolePage() {
-  const supabase = useMemo(() => createBrowserClient(), []);
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [conn, setConn] = useState<ConnState>('connecting');
@@ -18,10 +17,19 @@ export default function ConsolePage() {
 
   // ── 초기 로드 + Realtime 구독 ─────────────────────────────────────────────
   useEffect(() => {
+    let client: ReturnType<typeof createBrowserClient>;
+    try {
+      client = createBrowserClient();
+    } catch (error) {
+      console.error('[console] supabase client init error:', error);
+      setConn('error');
+      return;
+    }
+
     let mounted = true;
 
     (async () => {
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('inquiries')
         .select('*')
         .order('created_at', { ascending: false })
@@ -35,7 +43,7 @@ export default function ConsolePage() {
       }
     })();
 
-    const channel = supabase
+    const channel = client
       .channel('inquiries-realtime')
       .on(
         'postgres_changes',
@@ -53,15 +61,15 @@ export default function ConsolePage() {
 
     return () => {
       mounted = false;
-      supabase.removeChannel(channel);
+      client.removeChannel(channel);
     };
-  }, [supabase]);
+  }, []);
 
   const selected = inquiries.find((i) => i.id === selectedId) ?? null;
   const pendingCount = inquiries.filter((i) => i.status === 'pending').length;
 
   return (
-    <div className="flex h-screen w-full bg-[#0A0C0F] text-white font-[\"Noto_Sans_KR\",sans-serif]">
+    <div className="flex h-screen w-full bg-[#0A0C0F] text-white font-[Noto_Sans_KR,sans-serif]">
       {/* ── 좌측: 문의 리스트 (30%) ────────────────────────────────────── */}
       <aside className="w-[30%] min-w-[320px] border-r border-[#2A2F36] flex flex-col">
         <div className="px-5 py-4 border-b border-[#2A2F36] flex items-center justify-between">
@@ -176,7 +184,7 @@ function DraftPanel({ inquiry }: { inquiry: Inquiry }) {
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          className="w-full min-h-[180px] p-4 rounded-lg border border-[#2A2F36] bg-[#1A1F22] text-sm leading-relaxed font-[\"Noto_Sans_KR\",sans-serif] focus:outline-none focus:border-[#4F8AFE] resize-y"
+          className="w-full min-h-[180px] p-4 rounded-lg border border-[#2A2F36] bg-[#1A1F22] text-sm leading-relaxed font-[Noto_Sans_KR,sans-serif] focus:outline-none focus:border-[#4F8AFE] resize-y"
         />
       </Section>
 
