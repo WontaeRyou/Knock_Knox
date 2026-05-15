@@ -76,25 +76,45 @@ function ChatRoomScreen({ chat, onBack }) {
     setMessages(prev => [...prev, { id: 'm' + Date.now(), from: 'me', text, time, read: 0 }]);
     setInput('');
 
-    // ── [추가] n8n Webhook 비동기 전송 (채팅 동작에는 영향 없음 / non-blocking) ──
+    // ── [추가] n8n Webhook 비동기 전송 ─────────────────────────────────────
     setWebhookStatus('sending');
+    const typingTimer = setTimeout(() => setTyping(true), 600);
     sendToKnoxWebhook(text, chat?.id)
       .then(result => {
-        setWebhookStatus(result.success ? 'sent' : 'error');
+        clearTimeout(typingTimer);
+        setTyping(false);
+
+        const replyText = result.success
+          ? window.KnockN8nResponse?.extractKnoxReplyText(result.data)
+          : null;
+
+        if (replyText) {
+          setMessages(prev => [...prev, createN8nReply(replyText)]);
+          setWebhookStatus('answered');
+        } else if (result.success) {
+          setMessages(prev => [...prev, createN8nReply(
+            'AI Agent 접수는 완료됐지만 즉시 답변 본문이 포함되지 않았습니다. 검수 콘솔에서 결과를 확인해 주세요.',
+          )]);
+          setWebhookStatus('sent');
+        } else {
+          setMessages(prev => [...prev, createN8nReply(
+            'AI Agent 연결에 실패했습니다. 잠시 후 다시 시도하거나 검수 콘솔 상태를 확인해 주세요.',
+          )]);
+          setWebhookStatus('error');
+        }
+
         setTimeout(() => setWebhookStatus(null), 3000);
       })
       .catch(() => {
+        clearTimeout(typingTimer);
+        setTyping(false);
+        setMessages(prev => [...prev, createN8nReply(
+          'AI Agent 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+        )]);
         setWebhookStatus('error');
         setTimeout(() => setWebhookStatus(null), 3000);
       });
     // ── [추가 끝] ────────────────────────────────────────────────────────
-
-    // Auto-reply with typing indicator
-    setTimeout(() => setTyping(true), 600);
-    setTimeout(() => {
-      setTyping(false);
-      setMessages(prev => [...prev, autoReply(chat, text)]);
-    }, 2200);
   };
 
   const subtitle = chat.type === 'group'
@@ -185,6 +205,7 @@ function WebhookStatusBar({ status }) {
   const map = {
     sending: { text: '⏳ AI Agent에 전달 중...', color: T.textSecondary },
     sent:    { text: '✅ AI Agent 접수 완료',    color: T.secure },
+    answered:{ text: '✅ AI Agent 답변 수신',    color: T.secure },
     error:   { text: '⚠️ 전송 실패 (콘솔 확인)',  color: '#E74C3C' },
   };
   const s = map[status];
@@ -442,6 +463,19 @@ function iconBtnStyle(T) {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   };
+}
+
+function createN8nReply(text) {
+  const now = new Date();
+  const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const from = {
+    id: 'knox_ai_agent',
+    name: 'Knox AI Agent',
+    initial: 'K',
+    dept: 'AI Agent',
+  };
+
+  return { id: 'm' + Date.now() + 'n8n', from, text, time };
 }
 
 // Generate a contextual auto-reply
