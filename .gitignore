@@ -1,0 +1,31 @@
+# OS/editor
+.DS_Store
+Thumbs.db
+
+# dependencies
+node_modules/
+**/node_modules/
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# env files
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# local tooling
+.cursor/
+.vercel/
+**/.vercel/
+
+# build artifacts
+dist/
+build/
+coverage/
+*.tsbuildinfo

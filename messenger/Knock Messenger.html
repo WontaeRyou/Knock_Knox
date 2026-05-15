@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Knock — Secure Enterprise Messenger</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      background: #0A0C0F;
+      color: #fff;
+      font-family: "Noto Sans KR", -apple-system, system-ui, sans-serif;
+      min-height: 100vh;
+    }
+    * { box-sizing: border-box; }
+    @keyframes knock-dot {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+      40% { transform: translateY(-3px); opacity: 1; }
+    }
+    @keyframes screen-fade {
+      from { opacity: 0; transform: translateX(8px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .stage-bg {
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(79,138,254,0.10), transparent 50%),
+        radial-gradient(circle at 85% 85%, rgba(46,204,113,0.06), transparent 55%),
+        #0A0C0F;
+      z-index: -1;
+    }
+    .stage {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .brand {
+      position: fixed; top: 24px; left: 24px;
+      font-family: "IBM Plex Mono", monospace; font-size: 11px;
+      color: #5C6770; letter-spacing: 0.18em; text-transform: uppercase;
+    }
+    .brand strong { color: #FFF; font-weight: 600; letter-spacing: 0.12em; }
+
+    /* Android device shell */
+    .device {
+      width: 380px; height: 800px;
+      border-radius: 44px;
+      background: linear-gradient(160deg, #2a2d33, #1a1c20);
+      padding: 10px;
+      box-shadow:
+        0 40px 90px rgba(0,0,0,0.5),
+        0 0 0 1px rgba(255,255,255,0.04) inset,
+        0 0 0 2px rgba(0,0,0,0.6);
+      position: relative;
+    }
+    .device-screen {
+      width: 100%; height: 100%;
+      border-radius: 36px; overflow: hidden;
+      background: #121418;
+      display: flex; flex-direction: column;
+      position: relative;
+    }
+    .device-punch {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #000; z-index: 20;
+    }
+    .device-statusbar {
+      flex-shrink: 0;
+      height: 32px; padding: 0 22px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: #121418; color: #FFF;
+      font-size: 12px; font-weight: 600;
+      font-family: "Noto Sans KR", system-ui;
+    }
+    .device-statusbar-icons { display: flex; align-items: center; gap: 5px; }
+    .device-screen-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .screen-anim { animation: screen-fade 0.22s ease-out; }
+    /* Hide desktop scrollbars inside the device — mobile mockup shouldn't show them */
+    .device-screen *::-webkit-scrollbar { width: 0; height: 0; display: none; }
+    .device-screen * { scrollbar-width: none; -ms-overflow-style: none; }
+  </style>
+</head>
+<body>
+  <template id="__bundler_thumbnail">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+      <rect width="200" height="200" fill="#0A0C0F"/>
+      <rect x="60" y="36" width="80" height="128" rx="14" fill="#1A1F22" stroke="#2A2F36" stroke-width="2"/>
+      <rect x="68" y="56" width="64" height="14" rx="4" fill="#3B4D6E"/>
+      <rect x="68" y="78" width="48" height="10" rx="3" fill="#252B30"/>
+      <rect x="84" y="96" width="48" height="14" rx="4" fill="#3B4D6E"/>
+      <rect x="68" y="118" width="56" height="10" rx="3" fill="#252B30"/>
+      <circle cx="100" cy="148" r="5" fill="#2ECC71"/>
+    </svg>
+  </template>
+  <div class="stage-bg"></div>
+  <div class="brand"><strong>KNOCK</strong> · SECURE MESSENGER PROTOTYPE</div>
+
+  <div class="stage">
+    <div class="device">
+      <div class="device-screen">
+        <div class="device-punch"></div>
+        <div class="device-statusbar">
+          <span>9:30</span>
+          <div class="device-statusbar-icons">
+            <!-- signal -->
+            <svg width="14" height="12" viewBox="0 0 14 12"><rect x="0" y="9" width="2" height="3" fill="#fff"/><rect x="3" y="6" width="2" height="6" fill="#fff"/><rect x="6" y="3" width="2" height="9" fill="#fff"/><rect x="9" y="0" width="2" height="12" fill="#fff"/></svg>
+            <!-- wifi -->
+            <svg width="14" height="12" viewBox="0 0 14 12"><path d="M7 11.5L1 5.5a8.5 8.5 0 0112 0L7 11.5z" fill="#fff"/></svg>
+            <span style="font-size: 11px; opacity:0.85;">82%</span>
+            <!-- battery -->
+            <svg width="22" height="11" viewBox="0 0 22 11"><rect x="0.5" y="0.5" width="19" height="10" rx="2" stroke="#fff" fill="none"/><rect x="2" y="2" width="14" height="7" rx="1" fill="#fff"/><rect x="20" y="3" width="2" height="5" rx="1" fill="#fff"/></svg>
+          </div>
+        </div>
+        <div id="root" class="device-screen-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="data.jsx"></script>
+  <script type="text/babel" src="icons.jsx"></script>
+  <script type="text/babel" src="chat-list.jsx"></script>
+  <script type="text/babel" src="chat-room.jsx"></script>
+
+  <script type="text/babel">
+    function App() {
+      const [view, setView] = React.useState({ name: 'list' });
+
+      const openChat = (chat) => setView({ name: 'room', chat });
+      const back = () => setView({ name: 'list' });
+
+      return (
+        <div data-screen-label={view.name === 'list' ? '01 Chat List' : '02 Chat Room'} key={view.name + (view.chat?.id || '')} className="screen-anim" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          {view.name === 'list' && <ChatListScreen onOpenChat={openChat} />}
+          {view.name === 'room' && <ChatRoomScreen chat={view.chat} onBack={back} />}
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
