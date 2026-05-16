@@ -220,6 +220,7 @@ function DraftPanel({ inquiry }: { inquiry: Inquiry }) {
 function DirectPanel({ inquiry }: { inquiry: Inquiry }) {
   const top = inquiry.sources[0];
   const sim = Math.round((inquiry.ai_confidence ?? top?.similarity ?? 0) * 100);
+  const threshold = 85;
 
   return (
     <div className="p-8 max-w-3xl mx-auto pt-20">
@@ -234,19 +235,30 @@ function DirectPanel({ inquiry }: { inquiry: Inquiry }) {
       <div className="p-4 rounded-lg border border-[#F39C12] bg-[#2A1F0A] mb-6">
         <p className="font-semibold text-[#F39C12] mb-1">⚠️ AI가 답변할 수 없습니다</p>
         <p className="text-sm text-[#E6E0CC] leading-relaxed">
-          유사한 과거 사례를 찾을 수 없어 Hallucination 방지를 위해 답변을 생성하지 않았습니다.
+          유사한 과거 사례를 찾지 못해 Hallucination 방지를 위해 답변을 생성하지 않았습니다.
         </p>
-        <p className="text-xs text-[#8A9BA8] mt-2">
-          최고 유사도 <span className="font-mono text-[#F39C12]">{sim}%</span>
-        </p>
+        <div className="mt-3 space-y-1 text-xs text-[#8A9BA8]">
+          <p>
+            최고 유사도:{' '}
+            <span className="font-mono text-[#F39C12]">{sim}%</span>
+          </p>
+          <p>
+            임계값:{' '}
+            <span className="font-mono text-[#F39C12]">{threshold}%</span>
+          </p>
+        </div>
       </div>
 
       <Section title="🔍 가장 가까운 과거 질문">
         <div className="p-4 rounded-lg border border-[#2A2F36] bg-[#1A1F22] text-sm">
           {top ? (
             <>
-              <p className="text-[#E6EAEE] leading-relaxed mb-2">{top.matched_question}</p>
-              <p className="text-xs font-mono text-[#8A9BA8]">유사도 {sim}%</p>
+              <p className="text-[#E6EAEE] leading-relaxed mb-2">
+                “{top.matched_question}”
+              </p>
+              <p className="text-xs font-mono text-[#8A9BA8]">
+                유사도 {Math.round(top.similarity * 100)}%
+              </p>
             </>
           ) : (
             <p className="text-[#8A9BA8]">매칭된 과거 질문이 없습니다.</p>
@@ -254,7 +266,10 @@ function DirectPanel({ inquiry }: { inquiry: Inquiry }) {
         </div>
       </Section>
 
-      <div className="pt-4 border-t border-[#2A2F36]">
+      <div className="pt-4 border-t border-[#2A2F36] space-y-3">
+        <div className="p-4 rounded-lg border border-[#2A2F36] bg-[#1A1F22] text-sm text-[#E6EAEE] leading-relaxed">
+          Knox에서 직접 답변 후 말풍선 우클릭 → 위키에 추가하기로 플라이휠을 완성하세요.
+        </div>
         <Button variant="primary">💬 Knox에서 직접 응대하기</Button>
       </div>
     </div>

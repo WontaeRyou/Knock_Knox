@@ -272,7 +272,7 @@ function MessageContextMenu({ menu, onClose, chat }) {
       text: m.text || '',
       id: m.id || '',
     });
-    window.location.href = `wiki-add.html?${params.toString()}`;
+    window.location.href = `https://knock-knox-console.vercel.app/wiki/add?${params.toString()}`;
   };
 
   return (

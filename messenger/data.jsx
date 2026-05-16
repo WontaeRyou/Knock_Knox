@@ -62,6 +62,7 @@ const PEOPLE = {
   boan:    { id: 'boan',    name: '김보안',  initial: '김', dept: '정보보호실',     status: 'online' },
   moni:    { id: 'moni',    name: '정모니',  initial: '정', dept: '모니모사업팀',   status: 'online' },
   ryu:     { id: 'ryu',     name: '류원태',  initial: '류', dept: '모니모마케팅팀', status: 'online' },
+  wontae:  { id: 'wontae',  name: '류원태',  initial: '류', dept: '모니모마케팅팀', status: 'online' },
   rookie:  { id: 'rookie',  name: '김신입',  initial: '김', dept: '서비스개발팀',   status: 'online' },
 };
 
@@ -131,6 +132,18 @@ const MESSAGES = {
     { id: 'm_rookie_1', from: PEOPLE.rookie, text: '안녕하세요! 신입 김신입입니다. 여쭤볼 게 있어서요.', time: '14:10' },
     { id: 'm_rookie_2', from: PEOPLE.rookie, text: 'Claude API 키는 어떻게 발급받나요? 개발 업무에 필요한데 경로를 모르겠어요.', time: '14:11' },
     { id: 'm_rookie_3', from: 'me', text: '확인해서 알려드릴게요!', time: '14:12', read: 1 },
+    {
+      id: 'm_rookie_bot_1',
+      from: 'system',
+      kind: 'system',
+      text: '🤖 AI Agent: 유사한 사례를 찾지 못했습니다. (최고 유사도 0.41 / 임계값 0.85) 담당자를 초대합니다.',
+    },
+    {
+      id: 'm_rookie_wontae_1',
+      from: PEOPLE.wontae,
+      text: '안녕하세요 김신입 프로님! 류원태입니다. Claude API 키는 Anthropic Console(console.anthropic.com)에서 발급받으시면 됩니다. 단, 사내 보안 정책상 IT보안팀 검토 후 사용 가능하오니 먼저 IT보안팀에 신청 부탁드립니다.',
+      time: '14:20',
+    },
   ],
 };
 

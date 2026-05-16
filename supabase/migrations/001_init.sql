@@ -6,7 +6,6 @@
 
 -- 1) pgvector 확장 ----------------------------------------------------------
 CREATE EXTENSION IF NOT EXISTS vector;
-CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- gen_random_uuid()
 
 -- 2) qa_pairs — RAG 지식베이스 ----------------------------------------------
 CREATE TABLE IF NOT EXISTS public.qa_pairs (
@@ -20,17 +19,17 @@ CREATE TABLE IF NOT EXISTS public.qa_pairs (
 
 -- 3) inquiries — 검수 콘솔 ---------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.inquiries (
-  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id                 BIGSERIAL PRIMARY KEY,
   mode               TEXT NOT NULL CHECK (mode IN ('AI_DRAFT', 'FIELD_DIRECT')),
-  original_question  TEXT NOT NULL,
+  original_question  TEXT,
   sender_name        TEXT,
   sender_dept        TEXT,
   channel_id         TEXT,
+  status             TEXT NOT NULL DEFAULT 'pending'
+                       CHECK (status IN ('pending', 'reviewed', 'sent', 'routed')),
   ai_draft           TEXT,
   ai_confidence      FLOAT,
   sources            JSONB NOT NULL DEFAULT '[]'::jsonb,
-  status             TEXT NOT NULL DEFAULT 'pending'
-                       CHECK (status IN ('pending', 'reviewed', 'sent', 'routed')),
   created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -42,7 +41,7 @@ CREATE INDEX IF NOT EXISTS qa_pairs_embedding_hnsw_idx
   WITH (m = 16, ef_construction = 64);
 
 -- 4-2) qa_pairs metadata.department — 부서 필터링 가속
-CREATE INDEX IF NOT EXISTS qa_pairs_dept_idx
+CREATE INDEX IF NOT EXISTS qa_pairs_department_idx
   ON public.qa_pairs ((metadata->>'department'));
 
 -- 4-3) inquiries 상태 / 시간 정렬용
@@ -78,6 +77,7 @@ RETURNS TABLE (
   similarity FLOAT
 )
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 BEGIN
   RETURN QUERY
@@ -87,8 +87,7 @@ BEGIN
     q.metadata,
     1 - (q.embedding <=> query_embedding) AS similarity
   FROM public.qa_pairs q
-  WHERE q.embedding IS NOT NULL
-    AND q.metadata @> filter
+  WHERE q.metadata @> filter
   ORDER BY q.embedding <=> query_embedding
   LIMIT match_count;
 END;

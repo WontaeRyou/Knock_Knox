@@ -2,30 +2,23 @@
 
 // console/app/wiki/add/page.tsx
 // Knox 메신저에서 "위키에 추가하기" 우클릭 후 landing 하는 페이지.
-// query string으로 전달된 채팅을 Summarize Agent가 요약 → 편집 → Wiki 저장.
+// query string으로 전달된 채팅을 확인·편집한 뒤 n8n Wiki Webhook으로 전송합니다.
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { createBrowserClient } from '@/lib/supabase';
 
-const N8N_SUMMARIZE_URL =
+const DEFAULT_WIKI_WEBHOOK_URL =
   'https://wontaeryu.app.n8n.cloud/webhook-test/knox-wiki-add';
 
 const DEPARTMENTS = [
   '모니모마케팅팀',
-  '정보보호실',
   '서비스개발팀',
   'IT보안팀',
-  '데이터플랫폼팀',
+  '채널마케팅팀',
+  '기타',
 ];
 
-// 작성자 → 기본 부서 추정 (간단 매핑)
-const AUTHOR_TO_DEPT: Record<string, string> = {
-  류원태: '모니모마케팅팀',
-  김보안: '정보보호실',
-  박개발: '서비스개발팀',
-  정모니: '모니모사업팀',
-};
+type SaveState = 'idle' | 'success' | 'error';
 
 export default function WikiAddPage() {
   return (
@@ -43,51 +36,15 @@ function WikiAddInner() {
   const author    = sp.get('author') ?? '';
   const chatTitle = sp.get('chat')   ?? '';
   const msgTime   = sp.get('time')   ?? '';
+  const messageId = sp.get('id')     ?? '';
 
-  const [loading, setLoading] = useState(true);
-  const [agentError, setAgentError] = useState(false);
-  const [question, setQuestion] = useState('');
+  const [question, setQuestion] = useState(chatText);
   const [answer, setAnswer] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagDraft, setTagDraft] = useState('');
-  const [department, setDepartment] = useState(
-    AUTHOR_TO_DEPT[author] ?? '모니모마케팅팀',
-  );
+  const [department, setDepartment] = useState(DEPARTMENTS[0]);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  // ── 진입 시 Summarize Agent 호출 ─────────────────────────────────────────
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(N8N_SUMMARIZE_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_text: chatText,
-            responder_name: author,
-            department: AUTHOR_TO_DEPT[author] ?? '모니모마케팅팀',
-          }),
-        });
-        if (!res.ok) throw new Error('summarize_failed');
-        const data = await res.json();
-        if (cancelled) return;
-        setQuestion(data.question ?? '');
-        setAnswer(data.answer ?? '');
-        setTags(Array.isArray(data.tags) ? data.tags : []);
-      } catch (err) {
-        console.error('[wiki-add] summarize error:', err);
-        if (!cancelled) setAgentError(true);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [chatText, author]);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
 
   // ── 태그 추가/삭제 ───────────────────────────────────────────────────────
   const addTag = () => {
@@ -99,44 +56,36 @@ function WikiAddInner() {
   };
   const removeTag = (t: string) => setTags(tags.filter((x) => x !== t));
 
-  // ── Wiki 저장 (Supabase qa_pairs INSERT) ────────────────────────────────
+  // ── Wiki 저장 요청 (n8n Webhook POST) ───────────────────────────────────
   const save = async () => {
     setSaving(true);
-    setSaveError(null);
+    setSaveState('idle');
     try {
-      const supabase = createBrowserClient();
-      const { error } = await supabase.from('qa_pairs').insert({
-        content: question,
-        metadata: {
-          answer_text: answer,
-          question_original: chatText,
+      const webhookUrl =
+        process.env.NEXT_PUBLIC_WIKI_WEBHOOK_URL ?? DEFAULT_WIKI_WEBHOOK_URL;
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_text: chatText,
+          question,
+          answer,
           department,
           responder_name: author,
           tags,
-          archived_at: new Date().toISOString().slice(0, 10),
-        },
+          channel_id: chatTitle,
+          message_id: messageId,
+        }),
       });
-      if (error) throw error;
-      setSaved(true);
-      setTimeout(() => router.back(), 3000);
+      if (!res.ok) throw new Error(`webhook_failed:${res.status}`);
+      setSaveState('success');
     } catch (err) {
       console.error('[wiki-add] save error:', err);
-      setSaveError('Wiki 저장에 실패했습니다. 다시 시도해주세요.');
+      setSaveState('error');
     } finally {
       setSaving(false);
     }
   };
-
-  if (loading) return <LoadingScreen text="🤖 Summarize Agent가 정리하는 중…" />;
-
-  if (saved) {
-    return (
-      <Centered>
-        <p className="text-2xl mb-3">✅ Wiki에 추가되었습니다!</p>
-        <p className="text-sm text-[#8A9BA8]">3초 후 Knox 메신저로 돌아갑니다…</p>
-      </Centered>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#0A0C0F] text-white font-[Noto_Sans_KR,sans-serif]">
@@ -150,11 +99,13 @@ function WikiAddInner() {
           </p>
         </header>
 
-        {agentError && (
-          <div className="mb-4 p-3 rounded-md border border-[#F39C12]/40 bg-[#2A1F0A] text-xs text-[#F39C12]">
-            ⚠️ AI 요약에 실패했습니다. 아래에 직접 입력해주세요.
-          </div>
-        )}
+        <Field label="원본 대화 내용">
+          <textarea
+            value={chatText}
+            readOnly
+            className="w-full min-h-[120px] p-3 rounded-md border border-[#2A2F36] bg-[#11161A] text-sm leading-relaxed text-[#C8D0D8] resize-none"
+          />
+        </Field>
 
         <Field label="질문">
           <textarea
@@ -228,9 +179,15 @@ function WikiAddInner() {
           </select>
         </Field>
 
-        {saveError && (
+        {saveState === 'success' && (
+          <div className="mb-3 p-3 rounded-md border border-[#2ECC71]/40 bg-[#0F2E1F] text-xs text-[#2ECC71]">
+            ✅ Wiki에 추가되었습니다
+          </div>
+        )}
+
+        {saveState === 'error' && (
           <div className="mb-3 p-3 rounded-md border border-[#E74C3C]/40 bg-[#2A0F0F] text-xs text-[#E74C3C]">
-            {saveError}
+            ⚠️ 추가 실패. 다시 시도해주세요
           </div>
         )}
 
@@ -247,7 +204,7 @@ function WikiAddInner() {
             disabled={saving || !question.trim() || !answer.trim()}
             className="flex-1 px-4 py-3 rounded-lg bg-[#4F8AFE] hover:bg-[#3E78EA] text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? '저장 중…' : '📝 Wiki에 추가'}
+            {saving ? '전송 중…' : '최종 확인 — Wiki에 추가'}
           </button>
         </div>
       </div>
