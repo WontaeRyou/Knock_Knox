@@ -93,7 +93,7 @@ function ChatRoomScreen({ chat, onBack }) {
           setWebhookStatus('answered');
         } else if (result.success) {
           setMessages(prev => [...prev, createN8nReply(
-            'AI Agent 접수는 완료됐지만 즉시 답변 본문이 포함되지 않았습니다. 검수 콘솔에서 결과를 확인해 주세요.',
+            '유사 사례가 확인되지 않아 담당자에게 연결합니다. \n 잠시만 기다려 주세요.',
           )]);
           setWebhookStatus('sent');
         } else {

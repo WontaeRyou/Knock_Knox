@@ -1,4 +1,4 @@
-# KNOCK-Knox PoC 구현 명세서 v2.1
+# KNOCK-Knox PoC 구현 명세서 v2.2
 
 > **프로젝트**: 사내 업무 문의 자동 응답 AI Agent
 > **팀**: TEAM 890 "해일미리" (정수민·김주명·류원태)
@@ -9,33 +9,45 @@
 
 ---
 
-## 📌 v2.1 변경 사항 요약 (v2 → v2.1)
+## 📌 v2.2 변경 사항 요약 (v2.1 → v2.2)
 
-| 영역 | v2 | v2.1 (변경) | 변경 근거 |
+> **변경 기준일**: 2026-05-17 | Cursor 코드베이스 실황 확인 + n8n MCP 직접 조회 결과 반영
+
+| 영역 | v2.1 (이전) | v2.2 (변경) | 변경 근거 |
 |---|---|---|---|
-| 워크플로우 A 노드 수 | 9개 (Validation Agent 포함) | **8개 (Validation Agent 제거)** | Q-Q RAG는 답변이 LLM 생성물이 아니라 과거 검증된 답변 — 별도 검증 불필요 |
-| Action A JSON 응답 | `validation` 필드 포함 | **`validation` 필드 제거** | Validation Agent 제거에 따른 정합성 |
-| DB 함수명 | `match_qa_pairs` | **`match_documents`** | n8n Supabase Vector Store 노드 기본 컨벤션 |
-| 벡터 인덱스 타입 | IVFFlat (lists=100) | **HNSW (m=16, ef_construction=64)** | IVFFlat은 build 시점 클러스터링 고정 → 점진 INSERT·소규모 데이터에 부적합 |
-| 컬럼 구조 | `content` + `answer_text` 별도 컬럼 | **`content` + `metadata.answer_text` 통합** | n8n 표준 Vector Store 노드(content/metadata/embedding 3컬럼만 자동 처리)와 호환 |
-| 필터링 인덱스 | metadata GIN 인덱스 | **`metadata->>'department'` 전용 인덱스** | 자주 쓰는 키만 가속 → 더 효율적 |
+| n8n 워크플로우 A 노드 수 | 8개 (설계 기준) | **13개 (실제 배포 기준)** | MCP 직접 조회 결과 — 응답 정규화 노드 2개(Action A·B) 및 병합 구조 확인 |
+| n8n 워크플로우 A URL | 미기재 | **URL 명시** | 팀 공유용 접근 경로 확정 |
+| n8n 워크플로우 B 노드 수 | 6개 (설계 기준) | **10개 (실제 배포 기준)** | MCP 직접 조회 결과 — 필수값 검증 IF 노드, 에러·성공·실패 응답 분기 확인 |
+| n8n 워크플로우 B URL | 미기재 | **URL 명시** | 팀 공유용 접근 경로 확정 |
+| n8n 워크플로우 B 구조 | Summarize Agent(Claude Haiku) 포함 | **필수값 검증 → 정규화 → metadata 조립 → Vector Store (Insert) 구조** | MCP 직접 조회 결과 — Summarize Agent 없이 직접 Insert 흐름 확인 |
+| RAG/Supabase 구현 상태 | 설계 완료된 것으로 서술 | **설계 완료, 원격 qa_pairs 테이블 미생성 (최우선 블로커)** | Cursor 확인: REST 조회 404 반환 |
+| wiki-add 구현체 경로 | `/wiki-add` (모호하게 서술) | **정본: `console/app/wiki/add/page.tsx`, legacy: `messenger/wiki-add.html`** | Cursor 확인: page.tsx에 실제 webhook 호출 로직 존재 |
+| Knox 목업 버전 | 명시 없음 | **현재 모바일형(Android 380×800 shell) 운용 중, PC 버전 재작업 예정** | Cursor 확인: android-frame.jsx, 380px 쉘 확인 |
+| Scene 2 현업 매핑 방식 | "현업이 Knox에서 직접 응대"로 단순 서술 | **3자 방 생성 미구현 — 정적 메시지 흐름으로 처리 (PoC 범위 내 결정)** | Cursor 확인: 콘솔 초대 UI 없음, c_rookie는 정적 dm |
+| Supabase 프로젝트 URL | 미기재 | **`https://scmlaiiypectfoboejam.supabase.co`** | Cursor .env.local 확인 |
 
-> v2 → v2.1은 **노드 구성과 DB 구성의 미세 최적화**이며, 서비스 본질(Q-Q RAG, Scene 1·2, 인간 책임 모델)은 그대로 유지됩니다.
+> v2.1 → v2.2는 **실제 코드베이스·n8n 실 워크플로우와 명세서의 정합성 확보**가 핵심입니다.
+> 서비스 본질(Q-Q RAG, Scene 1·2, 인간 책임 모델, 플라이휠 구조)은 유지됩니다.
 
 ---
 
-## 📌 v1 → v2 → v2.1 누적 변경 (참고)
+## 📌 v1 → v2 → v2.1 → v2.2 누적 변경 (참고)
 
-| 영역 | v1 | v2 | v2.1 |
-|---|---|---|---|
-| RAG 방식 | Q+A 청크 | Q-Q 유사도 (멘토 피드백) | (유지) |
-| 테이블 구조 | 2개 분리안 | 단일 `qa_pairs` 통합 | (유지, 컬럼 미세 조정) |
-| 보안 노드 | n8n Classifier + audit_logs | 삭제 → 화면 보안 명세 카드 | (유지) |
-| 액션 | ①/②/③ 3종 | A/B 2종 | (유지) |
-| ROI 정량 | 포함 | 제외 | (유지) |
-| Validation Agent | 포함 | 포함 | **제거** |
-| DB 인덱스 | (미정) | IVFFlat | **HNSW** |
-| 함수명 | (미정) | `match_qa_pairs` | **`match_documents`** |
+| 영역 | v1 | v2 | v2.1 | v2.2 |
+|---|---|---|---|---|
+| RAG 방식 | Q+A 청크 | Q-Q 유사도 | (유지) | (유지) |
+| 테이블 구조 | 2개 분리안 | 단일 `qa_pairs` | (유지) | (유지, 원격 미생성 상태 명시) |
+| 보안 노드 | n8n Classifier | 삭제 → 보안 명세 카드 | (유지) | (유지) |
+| 액션 | ①/②/③ 3종 | A/B 2종 | (유지) | (유지) |
+| Validation Agent | 포함 | 포함 | **제거** | (유지) |
+| DB 인덱스 | 미정 | IVFFlat | **HNSW** | (유지) |
+| 함수명 | 미정 | `match_qa_pairs` | **`match_documents`** | (유지) |
+| 워크플로우 노드 수 | 미정 | 미정 | 8개/6개 (설계) | **13개/10개 (실제)** |
+| 워크플로우 URL | 미정 | 미정 | 미기재 | **명시** |
+| RAG 구현 상태 | 미정 | 미정 | 설계 완료로 서술 | **원격 테이블 미생성 명시** |
+| wiki-add 경로 | 미정 | 미정 | 모호 | **page.tsx 정본 확정** |
+| 목업 버전 | 미정 | 미정 | 명시 없음 | **모바일형 명시** |
+| Scene 2 현업 방식 | 미정 | 미정 | 단순 서술 | **정적 흐름 처리 명시** |
 
 ---
 
@@ -111,10 +123,10 @@
   → IF Node: 최고 유사도 < 0.85
   → "AI 답변 보류 — Hallucination 방지" 응답
   → 검수 콘솔에 "직접 답변 작성" 모드로 표시
-  → 현업이 Knox에서 직접 응대
+  → 현업이 Knox에서 직접 응대 [정적 흐름으로 처리 — 아래 §5 Scene 2 참조]
   → 응대 완료 후 메시지 드래그 → 우클릭 → "위키에 추가하기"
-  → Summarize Agent (Claude Haiku): 채팅 → {question, answer} JSON
-  → qa_pairs INSERT + 임베딩 적재
+  → console/app/wiki/add/page.tsx 랜딩
+  → 워크플로우 B: 필수값 검증 → 정규화 → metadata 조립 → qa_pairs INSERT + 임베딩 적재
   → ★ 다음번 유사 질문 발생 시 Action A로 자동 흡수
 ```
 
@@ -134,7 +146,7 @@
 - 임베딩 토큰 비용 90%+ 절감 (Q만 30~50토큰, A는 200~500토큰)
 - **평가위원 설명력**: "같은 질문을 찾아 답하는 사내 FAQ Agent" — 우리 서비스의 본질을 정확히 표현
 
-### 2-2. Validation Agent 제거 결정 (v2.1 신규)
+### 2-2. Validation Agent 제거 결정 (v2.1 확정)
 
 **Q-Q RAG 구조에서 Validation Agent가 불필요한 이유**:
 
@@ -168,93 +180,94 @@
 | 레이어 | 도구 | 채택 근거 |
 |---|---|---|
 | Workflow Orchestration | **n8n v2.20.7** | 인터페이스 기반 시각화, 팀 이용 경험 있음 |
-| Vector DB + RDB | **Supabase (pgvector)** | RAG 파이프라인 + DB 동시 지원 → 아키텍처 단순화 |
+| Vector DB + RDB | **Supabase (pgvector)** · `scmlaiiypectfoboejam.supabase.co` | RAG 파이프라인 + DB 동시 지원 → 아키텍처 단순화 |
 | RAG Framework | **n8n 내장 LangChain 노드** | 별도 서버 불필요. Vector Store/Embeddings/AI Agent 노드가 LangChain.js로 빌드됨 |
-| LLM (요약) | **Claude Haiku 4.5** | 단순 요약 → 빠르고 저렴 |
 | LLM (답변 생성) | **Claude Sonnet 4.6** | 답변 품질 중요 → 고도화 모델 |
 | Embedding | **OpenAI text-embedding-3-small (1536차원)** | n8n 호환성 + 한국어 양호 + 저렴 |
-| Frontend (목업) | **정적 React (Knock Messenger.html)** | 디자인 가이드 준수, UI 골격 수정 금지 |
+| Frontend (목업) | **정적 React (Knock Messenger.html)** · 현재 모바일형 | 디자인 가이드 준수, UI 골격 수정 금지 |
 | Frontend (콘솔/Wiki) | **Next.js (App Router) + React** | Cursor vibe-coding 최적 |
 | 배포 | **Vercel** | Next.js 최적, 데모 URL 즉시 공유 가능 |
 | Runtime | **Node.js v24.15.0** | n8n + Next.js 양쪽 호환 LTS 인접 버전 |
 
 > **단일 스택 원칙**: LangChain Python 서버, LangGraph 등 추가 오케스트레이션 프레임워크는 도입하지 않음. PoC 단계에서 듀얼 스택은 디버깅 비용만 증가.
 
+> ⚠️ **[v2.2 상태 주석] LLM (요약)**: v2.1 명세의 Claude Haiku 4.5 Summarize Agent는 워크플로우 B 실 구조에서 확인되지 않음. 현재 워크플로우 B는 직접 Insert 방식으로 동작. 별도 요약 단계 필요 시 Set Node 또는 Agent 노드 추가 검토 필요.
+
 ### 3-2. n8n 워크플로우 노드 구성
 
-#### 워크플로우 A: 신규 질문 인입 → Q-Q 검색 → 답변 추천 (Scene 1) — **총 8개 노드**
+> ⚠️ **[v2.2 상태 주석]** 아래 구성은 n8n MCP 직접 조회(2026-05-17) 결과 기준입니다. v2.1의 설계 노드 수(8개/6개)와 실제 배포 노드 수(13개/10개)가 다릅니다. 실제 n8n 대시보드가 기준입니다.
+
+#### 워크플로우 A: 신규 질문 인입 → Q-Q 검색 → 답변 추천 (Scene 1)
+
+- **워크플로우 ID**: `qGddk1phr96Kuz6t`
+- **워크플로우 이름**: `Knock_Knox`
+- **URL**: https://wontaeryu.app.n8n.cloud/workflow/qGddk1phr96Kuz6t
+- **Webhook Path**: `knox-message` (POST)
+- **테스트 URL**: `https://wontaeryu.app.n8n.cloud/webhook-test/knox-message`
+- **프로덕션 URL**: `https://wontaeryu.app.n8n.cloud/webhook/knox-message`
+- **현재 상태**: Active ✅
+- **실제 노드 수**: 13개
+
+**실제 노드 구성 (MCP 조회 기준)**:
 
 ```
-[1] Webhook Trigger
-    └ Knox 메신저(목업)로부터 새 질문 수신
-    └ Body: { question, sender_id, sender_name, sender_dept, channel_id }
+[1]  Webhook Trigger               — Knox 메신저(목업)로부터 새 질문 수신
+[2]  질문 정규화 (Set)              — 공백 통일, 특수문자 제거, 핵심 명사 보존
+[3]  Q-Q 유사도 검색 (VectorStore) — Supabase match_documents, Top 3
+     └ [서브] OpenAI Embeddings    — text-embedding-3-small
+[4]  유사도 임계점 분기 (IF)        — score[0] ≥ 0.85 → TRUE / FALSE
 
-[2] Set Node — 질문 정규화
-    └ 공백 통일, 특수문자 제거, 핵심 명사 보존
-    └ Output: { question_text, question_normalized }
+[TRUE 분기 — Action A]
+[5-A] Answer Agent (Sonnet)        — Claude Sonnet 4.6 답변 정제
+      └ [서브] Claude Sonnet 4.6   — LM 서브노드
+[6-A] 검수 콘솔 송출 (HTTP)        — POST {mode:"AI_DRAFT", draft, confidence, sources}
+[7-A] 응답 정규화 (Action A, Set)  — Webhook 응답 데이터 정규화
 
-[3] Embeddings Node (OpenAI text-embedding-3-small)  ★ LangChain 내장
-    └ Input: question_normalized
-    └ Output: vector[1536]
+[FALSE 분기 — Action B]
+[5-B] Action B — AI 미응답 처리 (Set) — {mode:"FIELD_DIRECT", reason, top_similarity}
+[6-B] 검수 콘솔 송출 (HTTP)           — POST {mode:"FIELD_DIRECT", original_question, top_match, similarity}
+[7-B] 응답 정규화 (Action B, Set)     — Webhook 응답 데이터 정규화
 
-[4] Supabase Vector Store — Get Many  ★ LangChain 내장
-    └ Mode: Get Many
-    └ Table Name: qa_pairs
-    └ Query Name: match_documents  (또는 빈칸 → 기본값 인식)
-    └ Limit: 3
-    └ Metadata Filter (선택): { "department": "{{ $('Webhook').item.json.sender_dept }}" }
-    └ Output: [{ pageContent, metadata, score }, ...] × 3
-
-[5] IF Node — 유사도 임계점 분기
-    └ {{ $json[0].score }} >= 0.85  → TRUE  (Action A: 답변 가능)
-    └ {{ $json[0].score }} <  0.85  → FALSE (Action B: AI 미응답)
-
-[6-A] (TRUE 분기) Answer Agent (Claude Sonnet 4.6)
-      └ Input: { current_question, matched_question, matched_answer (metadata.answer_text), similarity }
-      └ Prompt: "매칭된 과거 답변을 현재 질문 맥락에 맞게 정제. 사실 변경 금지."
-      └ Output: { draft, confidence: similarity, sources: [...] }
-
-[7-A] HTTP Request — 현업 검수 콘솔로 송출
-      └ POST {mode: "AI_DRAFT", draft, confidence, sources}
-
-[6-B] (FALSE 분기) Set Node — "Not Found" Response 생성
-      └ { mode: "FIELD_DIRECT", reason: "유사도 미달", top_similarity: ... }
-
-[7-B] HTTP Request — 현업 검수 콘솔로 송출 (직접 응대 모드)
-      └ POST {mode: "FIELD_DIRECT", original_question, top_match, similarity}
+[공통]
+[8]  Webhook 응답                   — { status:"received", message:"처리 완료" } 즉시 반환
 ```
 
-> **v2 → v2.1 변경**: 9번 노드였던 Validation Agent 제거 → 총 8개 노드. Answer Agent 직후 바로 HTTP Request로 검수 콘솔에 송출.
+> **설계 기준 노드 수(8개)와 실제 배포 노드 수(13개)의 차이**: 각 분기별 응답 정규화 Set 노드(7-A, 7-B)가 추가로 배포되어 있으며, Claude Sonnet 서브노드와 OpenAI Embeddings 서브노드가 별도 계산됨.
 
-#### 워크플로우 B: 현업 응대 완료 후 Wiki 적재 (Scene 2의 후반부) — **총 6개 노드**
+#### 워크플로우 B: Wiki 적재 (Scene 2의 후반부 — 플라이휠)
+
+- **워크플로우 ID**: `Lxtjx8UE6Hbxfvko`
+- **워크플로우 이름**: `Knock_Knox (Scene2)`
+- **URL**: https://wontaeryu.app.n8n.cloud/workflow/Lxtjx8UE6Hbxfvko
+- **Webhook Path**: `knox-wiki-add` (POST)
+- **테스트 URL**: `https://wontaeryu.app.n8n.cloud/webhook-test/knox-wiki-add`
+- **프로덕션 URL**: `https://wontaeryu.app.n8n.cloud/webhook/knox-wiki-add`
+- **현재 상태**: Active ✅
+- **실제 노드 수**: 10개
+
+**실제 노드 구성 (MCP 조회 기준)**:
 
 ```
-[1] Webhook Trigger
-    └ Knox 목업에서 "위키에 추가하기" 우클릭 메뉴 클릭
-    └ Body: { chat_text, responder_id, responder_name, department }
+[1]  Webhook Trigger               — "위키에 추가하기" 클릭 시 수신
+     └ Body: { chat_text, responder_id, responder_name, department }
+[2]  필수값 검증 (IF)              — 필수 필드 존재 여부 확인
 
-[2] Summarize Agent (Claude Haiku 4.5)
-    └ 메신저 대화 원문 → { question, answer, tags } JSON 추출
-    └ 발신자 식별 정보 제거
+[검증 실패 분기]
+[3-E] 에러 응답 (Respond)          — 400 에러 즉시 반환
 
-[3] Set Node — 질문 정규화 + metadata 조립
-    └ question_normalized 생성
-    └ metadata 객체에 answer_text, department, responder_id, tags, archived_at 등 포함
+[검증 성공 분기]
+[3]  질문 정규화 및 데이터 정리 (Set)  — question_normalized 생성
+[4]  metadata 조립 (Set)           — answer_text, department, tags, archived_at 등 조립
+[5]  Supabase Vector Store (Insert) — qa_pairs 테이블에 문서 + 임베딩 INSERT
+     └ [서브] Default Data Loader  — JSON 모드, question_normalized + metadata
+     └ [서브] OpenAI Embeddings    — text-embedding-3-small
 
-[4] Embeddings Node (OpenAI text-embedding-3-small)  ★ LangChain 내장
-    └ Input: question_normalized
-
-[5] Supabase Vector Store — Insert Documents  ★ LangChain 내장
-    └ Mode: Insert Documents
-    └ Table Name: qa_pairs
-    └ Loader (sub-node): Default Data Loader
-       - Mode: JSON
-       - Content: {{ $json.question_normalized }}
-       - Metadata: (Set Node에서 조립한 객체 — answer_text 포함)
-
-[6] Respond to Webhook
-    └ "Wiki 적재 완료" 응답
+[INSERT 결과 분기]
+[6-S] 성공 응답 (Respond)          — "Wiki 적재 완료"
+[6-F] 실패 응답 (Respond)          — 오류 내용 반환
 ```
+
+> ⚠️ **[v2.2 주요 변경]** v2.1 명세의 워크플로우 B에는 `Summarize Agent (Claude Haiku 4.5)` 노드가 포함되어 있었으나, 실제 배포된 워크플로우 B에는 해당 노드가 없습니다. 현재는 `console/app/wiki/add/page.tsx`에서 Q-A를 미리 분리하여 webhook으로 전송하는 방식으로 동작합니다. 추후 Summarize Agent 추가가 필요하면 워크플로우 B에 노드를 삽입하면 됩니다.
 
 ### 3-3. Agent Output 표준 (JSON)
 
@@ -283,13 +296,18 @@
 }
 ```
 
-> **v2 → v2.1 변경**: Action A 응답 JSON에서 `validation` 필드 제거.
-
 > **설계 원칙**: Confidence Thresholding은 **n8n IF 노드(별도 분리)**에서 수행. Agent 프롬프트 내부에 숨기지 않음 → 아키텍처 슬라이드와 실 구현이 시각적으로 일치.
 
 ---
 
-## 4. Supabase 스키마 설계 (v2.1 — 최종안)
+## 4. Supabase 스키마 설계 (v2.2 — 최종안)
+
+> ⚠️ **[v2.2 상태 주석 — 최우선 블로커]**
+> - Supabase 프로젝트: `https://scmlaiiypectfoboejam.supabase.co`
+> - `.env.local` 환경변수(NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY): **채워짐**
+> - `qa_pairs` 테이블: **원격 미생성** (REST 조회 404 반환, 2026-05-17 기준)
+> - `match_documents` RPC 함수: **미생성** (테이블 없으므로 동반 미생성)
+> - **→ 아래 §4-1~4-2 SQL을 Supabase SQL Editor에서 순서대로 실행해야 RAG가 동작합니다.**
 
 ### 4-1. 핵심 테이블 — qa_pairs
 
@@ -321,17 +339,11 @@ CREATE TABLE qa_pairs (
 -- ============================================
 -- 3. 인덱스 — HNSW (점진적 INSERT 대응)
 -- ============================================
--- HNSW를 채택한 이유:
--- - IVFFlat은 build 시점 k-means 클러스터링이 고정 → 빈 테이블·점진 INSERT에 부적합
--- - PoC는 시드 30~50건에서 시작 → Action B 플라이휠로 점진 증가
--- - HNSW는 빈 테이블에도 인덱스 생성 가능, 동적 갱신에 강함
--- - 소량 데이터(<10K)에서도 정상 작동
--- ============================================
 CREATE INDEX qa_pairs_embedding_hnsw_idx
     ON qa_pairs USING hnsw (embedding vector_cosine_ops)
     WITH (m = 16, ef_construction = 64);
 
--- 부서별 필터링 가속 (자주 쓰는 키만 — GIN 전체보다 효율적)
+-- 부서별 필터링 가속
 CREATE INDEX qa_pairs_department_idx
     ON qa_pairs ((metadata->>'department'));
 
@@ -355,14 +367,6 @@ CREATE TRIGGER qa_pairs_updated_at_trigger
 ### 4-2. 핵심 RPC 함수 — match_documents (LangChain/n8n 표준 컨벤션)
 
 ```sql
--- ============================================
--- match_documents : Q-Q 유사도 검색 함수
--- (n8n Supabase Vector Store 노드 기본 시그니처 + LangChain 표준 컨벤션)
--- ============================================
--- 함수명을 match_documents로 두는 이유:
--- - n8n 노드의 "Query Name" 칸 기본값으로 인식 (빈칸 가능)
--- - 외부 자료·예제·트러블슈팅 검색 시 호환성 ↑
--- ============================================
 CREATE OR REPLACE FUNCTION match_documents (
     query_embedding VECTOR(1536),
     match_count     INT DEFAULT 3,
@@ -390,7 +394,7 @@ END;
 $$;
 ```
 
-### 4-3. metadata 구조 (v2.1)
+### 4-3. metadata 구조 (v2.2)
 
 ```json
 {
@@ -462,7 +466,7 @@ INSERT INTO qa_pairs (content, metadata) VALUES (
 [STEP 1] Knox 메신저 입력
   김삼성: "모니모 MAU 구하는 SQL 쿼리 알려주세요"
 
-       ↓ n8n Webhook 수신
+       ↓ n8n Webhook 수신 (POST /webhook/knox-message)
 
 [STEP 2] 질문 정규화 + 임베딩
   → "모니모 MAU 구하는 SQL 쿼리"
@@ -515,7 +519,14 @@ INSERT INTO qa_pairs (content, metadata) VALUES (
 
 ### Scene 2 — AI가 모르면 솔직히 모른다고 한다 + 플라이휠 라이브 (Action B 시연)
 
-**상황**: 김신입(서비스개발팀)이 Wiki에 없는 신규 질문을 입력. AI가 응답을 거부하고, 현업 응대 후 Wiki에 적재되어 동일 질문 재입력 시 매칭됨.
+**상황**: 김신입(서비스개발팀)이 Wiki에 없는 신규 질문을 입력. AI가 응답을 거부하고, 현업이 정적으로 응대한 후 Wiki에 적재되어 동일 질문 재입력 시 매칭됨.
+
+> ⚠️ **[v2.2 상태 주석 — Scene 2 현업 매핑 방식]**
+> - 콘솔에 담당 현업 초대 UI 없음, 3자 방 생성 로직 미구현
+> - `c_rookie` 채팅방은 dm 타입이며, "담당자를 초대합니다." 시스템 메시지 + 현업 답변이 정적으로 하드코딩
+> - PoC 범위 내에서 **정적 메시지 흐름**으로 처리하기로 결정 (이미지화 방식)
+> - `data.jsx`에 group 타입 채팅방(`보안성 검토 요청 채널`) 구조는 존재하나, Scene 2와 직접 연결되어 있지 않음
+> - 실서비스 전환 시 담당자 매핑 테이블(Supabase) + Knox API 초대 연동 필요
 
 **시연 흐름**:
 
@@ -556,29 +567,30 @@ INSERT INTO qa_pairs (content, metadata) VALUES (
   │ [직접 답변 작성하기]                     │
   └─────────────────────────────────────────┘
 
-       ↓ 현업(류원태) 직접 응대
+       ↓ 현업(류원태) 직접 응대 [정적 메시지 흐름으로 표현]
 
-[STEP 5] Knox 메신저로 답변 발송
+[STEP 5] Knox 메신저에 답변 표시 (정적 하드코딩)
+  시스템: "담당자를 초대합니다."
   류원태: "Anthropic Console에서 발급받으면 됩니다.
            정보보호 검토 후 사용 가능합니다..."
 
        ↓ 응대 완료
 
 [STEP 6] 메신저 대화 드래그 → 우클릭 → "위키에 추가하기"
-  (Knock Messenger 디자인 가이드 chat-room.jsx에 기 구현된 기능)
+  (chat-room.jsx에 기 구현된 기능 — query string으로 전달)
 
-       ↓ wiki-add 페이지 이동
+       ↓ console/app/wiki/add/page.tsx 랜딩
 
 [STEP 7] Wiki 적재 확인 화면
   ┌─────────────────────────────────────────┐
   │ 📝 Wiki에 추가하시겠습니까?              │
   │                                          │
-  │ 질문 (Summarize Agent 요약, 편집 가능)   │
+  │ 질문 (편집 가능)                         │
   │ ┌──────────────────────────────────┐    │
   │ │ Claude API 키 발급 방법은?       │    │
   │ └──────────────────────────────────┘    │
   │                                          │
-  │ 답변 (Summarize Agent 요약, 편집 가능)   │
+  │ 답변 (편집 가능)                         │
   │ ┌──────────────────────────────────┐    │
   │ │ Anthropic Console에서 발급...    │    │
   │ └──────────────────────────────────┘    │
@@ -589,7 +601,8 @@ INSERT INTO qa_pairs (content, metadata) VALUES (
   │ [Wiki에 추가] [취소]                     │
   └─────────────────────────────────────────┘
 
-       ↓ INSERT INTO qa_pairs + 임베딩 적재
+       ↓ POST /webhook/knox-wiki-add → 워크플로우 B
+       ↓ 필수값 검증 → 정규화 → metadata 조립 → INSERT + 임베딩 적재
 
 [STEP 8] ★ 플라이휠 라이브 시연
   시연자가 다시 Knox에서 동일 질문 입력
@@ -611,26 +624,38 @@ INSERT INTO qa_pairs (content, metadata) VALUES (
 
 ### 6-1. 화면 구성 (총 4종)
 
-| # | 화면 | 역할 | 기술 |
-|---|---|---|---|
-| 1 | **Knox 메신저 (목업)** | 질문자가 채팅 입력 / 현업이 답변 발송 | 정적 React (`Knock Messenger.html`) — 디자인 가이드 준수 |
-| 2 | **현업 검수 콘솔** | AI 초안 + 신뢰도 + 소스 표시 / Action A·B 분기 표시 | Next.js 페이지 + Supabase Realtime 구독 |
-| 3 | **Wiki 적재 페이지** | 드래그한 대화 미리보기 → 요약 결과 확인 → 저장 | Next.js 페이지 (`wiki-add.html` 자리 대체) |
-| 4 | **(보안 명세 카드)** | PoC 보안 정책 패널 (정적 텍스트) | 콘솔 또는 별도 페이지 한 켠 |
+| # | 화면 | 역할 | 기술 | 배포 URL |
+|---|---|---|---|---|
+| 1 | **Knox 메신저 (목업)** | 질문자가 채팅 입력 / 현업이 답변 발송 | 정적 React (`Knock Messenger.html`) · **현재 모바일형 (Android 380×800 shell)** | https://knock-knox-messenger.vercel.app/Knock%20Messenger.html |
+| 2 | **현업 검수 콘솔** | AI 초안 + 신뢰도 + 소스 표시 / Action A·B 분기 표시 | Next.js (`console/app/console/page.tsx`) + Supabase Realtime | https://knock-knox-console.vercel.app/ |
+| 3 | **Wiki 적재 페이지** | 드래그한 대화 미리보기 → 저장 | Next.js · **정본: `console/app/wiki/add/page.tsx`** | https://knock-knox-console.vercel.app/wiki/add |
+| 4 | **(보안 명세 카드)** | PoC 보안 정책 패널 (정적 텍스트) | 콘솔 내 패널 컴포넌트 | — |
+
+> ⚠️ **[v2.2 상태 주석 — wiki-add 경로]**
+> - **정본**: `console/app/wiki/add/page.tsx` — `knox-wiki-add` n8n webhook POST 실제 구현체
+> - **Legacy**: `messenger/wiki-add.html`, `messenger/wiki-add.bundle.html` — URL query string을 JSON 표시하는 placeholder. 이번 PoC 작업 범위 밖.
+> - `chat-room.jsx`의 우클릭 이벤트는 현재 `wiki-add.html`로 query string을 전달하도록 되어 있음 → 데모 전 `console/wiki/add` URL로 변경 필요.
+
+> ⚠️ **[v2.2 상태 주석 — Knox 목업 버전]**
+> - 현재 배포: 모바일형 (Android device shell, 380×800px)
+> - PC 버전 재작업 진행 중 (정수민)
+> - PC 버전 완료 시 Cursor 작업지시서 v3.0 재발행 필요
+> - UI 골격(`Knock Messenger.html`, `*.jsx`, `android-frame.jsx`) 수정 금지 원칙 유지
 
 ### 6-2. Frontend 규칙 (디자인 가이드 준수)
 
 **불변 원칙** (디자인 가이드 인용):
-- `Knock Messenger.html` 및 동봉된 `*.jsx` 컴포넌트의 **UI 골격/디자인 토큰은 절대 수정 금지**
+- `Knock Messenger.html` 및 동봉된 `*.jsx`, `android-frame.jsx` 컴포넌트의 **UI 골격/디자인 토큰은 절대 수정 금지**
 - 콘텐츠 변경은 **`data.jsx` 한 파일에서만** (`PEOPLE`, `CHATS`, `MESSAGES`)
-- 우클릭 → "위키에 추가하기" 이벤트는 **이미 `chat-room.jsx`에 구현되어 있음** → `wiki-add.html`로 query string 전달
+- 우클릭 → "위키에 추가하기" 이벤트는 **이미 `chat-room.jsx`에 구현되어 있음** → **`console/wiki/add` URL로 query string 전달** (기존 `wiki-add.html` 경로는 데모 전 교체 필요)
 - 새로 만드는 검수 콘솔/Wiki 페이지는 **별도 Next.js 페이지**로 구축 (기존 목업과 분리)
 
 **`data.jsx` 콘텐츠 수정 체크리스트** (디자인 가이드 §6 인용):
 1. `PEOPLE` 객체 — 김보안(IT보안팀), 김삼성(채널마케팅팀), 류원태(모니모마케팅팀) 등 시나리오 인물 정의
 2. `CHATS` 배열 — 채팅방 리스트 (시나리오 1, 2별 채팅방)
 3. `MESSAGES` 객체 — 채팅방별 메시지 스레드
-4. `chat-list.jsx` 의 `personHue`에 새 인물 id 색상 추가 (필요시)
+4. `chat-list.jsx`의 `personHue`에 새 인물 id 색상 추가 (필요시)
+5. `KNOCK_CONFIG.useTestWebhook` — 데모 당일 `false`로 변경
 
 ### 6-3. 데이터 흐름 (Realtime)
 
@@ -638,10 +663,10 @@ INSERT INTO qa_pairs (content, metadata) VALUES (
 [Knox 목업: 질문 입력]
         |
         v  POST /webhook/knox-message
-[n8n 워크플로우 A 실행]
+[n8n 워크플로우 A 실행 (ID: qGddk1phr96Kuz6t)]
         |
-        v  match_documents 호출
-[Supabase]
+        v  match_documents 호출 (Supabase: scmlaiiypectfoboejam)
+[Supabase qa_pairs 테이블 ← 현재 미생성, 최우선 블로커]
         |
         v  Supabase Realtime 이벤트 발행
 [현업 검수 콘솔 — Action A or B 모드로 자동 갱신]
@@ -656,7 +681,9 @@ INSERT INTO qa_pairs (content, metadata) VALUES (
                 |
                 v  POST /webhook/knox-wiki-add
                 |
-                v  [n8n 워크플로우 B 실행]
+                v  [n8n 워크플로우 B 실행 (ID: Lxtjx8UE6Hbxfvko)]
+                |
+                v  필수값 검증 → 정규화 → metadata 조립
                 |
                 v  INSERT INTO qa_pairs (with embedding)
                 |
@@ -664,8 +691,6 @@ INSERT INTO qa_pairs (content, metadata) VALUES (
 ```
 
 ### 6-4. 보안 명세 카드 콘텐츠 (화면 내 패널)
-
-검수 콘솔 또는 별도 페이지에 다음 패널 배치:
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -696,30 +721,28 @@ INSERT INTO qa_pairs (content, metadata) VALUES (
 
 | 담당 | 작업 |
 |---|---|
-| **류원태** | n8n 파이프라인 설계 (Webhook → 정규화 → 임베딩 → Vector Store → IF → Answer Agent → HTTP Request 전체 플로우 확정) |
-| **김주명** | Supabase 프로젝트 + `qa_pairs` 테이블 + HNSW 인덱스 + `match_documents` RPC 함수 마이그레이션 |
-| **정수민** | Knox 목업 `data.jsx` 시나리오 데이터 작성 (Scene 1·2 인물·채팅방·메시지) + UX 와이어프레임 |
-| **공통** | Claude API Key, OpenAI Embeddings API Key, Supabase, n8n 인스턴스 세팅 |
+| **류원태** | n8n 파이프라인 설계 완료 ✅ / Supabase credentials 연결 상태 n8n MCP 확인 필요 |
+| **김주명** | ⚠️ **최우선**: Supabase `qa_pairs` 테이블 + HNSW 인덱스 + `match_documents` RPC 마이그레이션 실행 |
+| **정수민** | Knox 목업 `data.jsx` 시나리오 데이터 작성 완료 ✅ / PC 버전 Figma 재작업 진행 중 |
+| **공통** | Claude API Key, OpenAI Embeddings API Key, Supabase 연동 검증 |
 
 ### DAY 2 — AI Agent 개발 및 Frontend 연동
 
 | 담당 | 작업 |
 |---|---|
-| **류원태** | n8n 워크플로우 A 구축 (Scene 1 흐름) + Answer Agent 프롬프트 작성 |
+| **류원태** | n8n 워크플로우 A Supabase credentials 연결 + 시드 데이터로 Action A E2E 검증 |
 | **김주명** | Wiki 시드 Q-A 페어 30~50건 작성 + 워크플로우 B로 임베딩 일괄 적재 |
-| **정수민** | Next.js 검수 콘솔 페이지 + Wiki 적재 페이지 Cursor 개발 |
+| **정수민** | 검수 콘솔 Action A·B 분기 UI 완성 / wiki-add URL 교체 (`wiki-add.html` → `/wiki/add`) |
 | **공통** | 목업 ↔ Agent ↔ DB 연동 1차 테스트 (Scene 1 End-to-End) |
 
 ### DAY 3 — Workflow 완성 및 데모 QA
 
 | 담당 | 작업 |
 |---|---|
-| **류원태** | 워크플로우 B (Wiki 적재) 완성 + Scene 2 시나리오 검증 + 통합 테스트 QA |
-| **김주명** | 유사도 임계점 튜닝 (0.80~0.90 P/R 곡선 확인) + RAG 기능 중심 QA + 시드 데이터 보강(50~70건) |
+| **류원태** | 워크플로우 B Scene 2 시나리오 검증 + 통합 테스트 QA |
+| **김주명** | 유사도 임계점 튜닝 (0.80~0.90 P/R 곡선 확인) + 시드 데이터 보강(50~70건) |
 | **정수민** | Scene 1·2 5-Screen 데모 플로우 QA + 목업 ↔ Agent 연동 개선 |
 | **공통** | 발표 자료 정합성 검토 (PPT ↔ 실 구현 일치 확인) + 백업 영상 녹화 |
-
-**v2.1 Day 3 회수 시간 활용**: Validation Agent 작업 제거로 약 2~3시간 회수 → 임계점 튜닝, 시드 데이터 보강, 백업 영상 녹화에 투입.
 
 **백업 플랜**: 목업 연동 실패 시 Supabase 기반 단순 EM(Eval Mode) 기능으로 대체. n8n 워크플로우만으로 시연 가능한 폴백 경로 확보.
 
@@ -733,7 +756,7 @@ INSERT INTO qa_pairs (content, metadata) VALUES (
 |---|---|
 | KNOX 대화 데이터 | 인터뷰 기반 더미 시나리오 (사번/성명 실제 미포함) |
 | Wiki 지식베이스 | 3개 부서(IT보안·경리·모니모) 인터뷰 기반 더미 Q&A 30~70건 |
-| 저장 인프라 | Supabase Cloud (해커톤 한정) |
+| 저장 인프라 | Supabase Cloud (`scmlaiiypectfoboejam.supabase.co`) |
 | LLM API | Anthropic Cloud API + OpenAI Embeddings API (공개 플랜, 더미 데이터만 사용) |
 | 보안 분류 | **별도 노드 미구현** — 화면 내 보안 명세 카드로 정책 명시 |
 
@@ -752,21 +775,21 @@ INSERT INTO qa_pairs (content, metadata) VALUES (
 
 ## 9. 평가위원 어필 포인트 (Demo Selling Points)
 
-1. **Q-Q RAG의 도메인 정합성** — "답변 문서를 검색하는 일반 RAG"가 아니라 **"같은 질문이 과거에 있었나"를 묻는 사내 FAQ Agent**임을 명시. 멘토 피드백 반영의 깊이를 평가위원에게 즉시 전달.
+1. **Q-Q RAG의 도메인 정합성** — "답변 문서를 검색하는 일반 RAG"가 아니라 **"같은 질문이 과거에 있었나"를 묻는 사내 FAQ Agent**임을 명시.
 
 2. **AI의 자기 한계 인정** — Scene 2의 핵심. 임계값 미달 시 답변 거부 → Hallucination 방지를 코드 한 줄로 보장. 금융권 trust signal.
 
-3. **플라이휠 라이브 시연** — Wiki 적재 직후 동일 질문 재시연으로 자동 매칭 성공. PoC 단계에서도 명백히 작동하는 자가 강화 루프.
+3. **플라이휠 라이브 시연** — Wiki 적재 직후 동일 질문 재시연으로 자동 매칭 성공.
 
-4. **인간 책임 모델** — AI는 초안만 생성, 발송 책임은 현업이 보유. 금융권 책임 소재 문제 해결. **v2.1에서 Validation Agent를 제거하여 이 모델이 더욱 명확해짐.**
+4. **인간 책임 모델** — AI는 초안만 생성, 발송 책임은 현업이 보유. 금융권 책임 소재 문제 해결.
 
-5. **n8n IF 노드 분리 설계** — Confidence Thresholding을 Agent 프롬프트 안에 숨기지 않고 시각적으로 분리. 아키텍처 슬라이드와 실 구현의 일치성 확보.
+5. **n8n IF 노드 분리 설계** — Confidence Thresholding을 Agent 프롬프트 안에 숨기지 않고 시각적으로 분리.
 
-6. **단일 스택 단순성** — n8n + Supabase + Claude만으로 모든 기능 구현. 운영·디버깅·인수인계 비용 최소화 → 실 도입 가능성 강조.
+6. **단일 스택 단순성** — n8n + Supabase + Claude만으로 모든 기능 구현.
 
-7. **보안 명세의 명시적 노출** — PoC 범위를 의도적으로 한정한 결과이며, 실서비스 전환 시 보안 보강 항목을 화면에 명시. "안 만든 게 아니라 단계적 적용을 명확히 한 것"임을 평가위원에게 전달.
+7. **보안 명세의 명시적 노출** — PoC 범위를 의도적으로 한정, 실서비스 전환 시 보강 항목을 화면에 명시.
 
-8. **표준 컨벤션 준수 (v2.1 신규)** — Supabase 함수명 `match_documents`, LangChain Vector Store 표준 사용. 외부 자료·n8n 노드 기본값과 호환 → 실 도입 시 학습 곡선 ↓.
+8. **표준 컨벤션 준수** — Supabase 함수명 `match_documents`, LangChain Vector Store 표준 사용.
 
 ### 9-1. 평가위원 예상 질의 대응
 
@@ -774,47 +797,44 @@ INSERT INTO qa_pairs (content, metadata) VALUES (
 |---|---|
 | "Validation은 왜 별도로 안 두셨나요?" | "Q-Q RAG 구조 자체가 검증 메커니즘입니다. 답변은 과거에 현업이 실제 사용한 검증된 답변이며, 0.85 임계값이 매칭 품질을 보장합니다. 최종 검증은 검수 콘솔에서 현업이 수행합니다." |
 | "왜 IVFFlat이 아니라 HNSW인가요?" | "IVFFlat은 인덱스 생성 시점의 데이터로 k-means 클러스터링이 고정됩니다. 저희는 시드 30~50건에서 시작해 플라이휠로 점진 증가하는 운영 패턴이므로, 빈 테이블에도 인덱스 생성이 가능하고 동적 INSERT에 강한 HNSW가 적합합니다." |
-| "테이블 하나에 다 넣는 게 정규화 위반 아닌가요?" | "Q-Q RAG의 핵심은 검색 단위(질문)와 보유 단위(질문+답변+메타)를 일치시키는 것입니다. 단일 테이블이 LangChain·n8n 표준 컨벤션이며, PoC 데이터 규모(~수천 건)에서는 분리·정규화의 이점이 거의 없습니다. 실 서비스 단계에서 답변 버전 관리·이력 추적이 필요해지면 별도 history 테이블 추가로 확장 가능합니다." |
-| "왜 한국어 임베딩 모델이 아니라 OpenAI를?" | "한국어 단문(질문 30~50토큰) 임베딩은 text-embedding-3-small에서도 충분한 의미 분리가 가능합니다. n8n 노드 호환성과 운영 단순성을 우선 고려했고, 시연 후 정확도 부족 시 voyage-3-large 등으로 즉시 전환 가능합니다." |
+| "테이블 하나에 다 넣는 게 정규화 위반 아닌가요?" | "Q-Q RAG의 핵심은 검색 단위(질문)와 보유 단위(질문+답변+메타)를 일치시키는 것입니다. 단일 테이블이 LangChain·n8n 표준 컨벤션이며, PoC 데이터 규모에서는 분리·정규화의 이점이 거의 없습니다." |
+| "왜 한국어 임베딩 모델이 아니라 OpenAI를?" | "한국어 단문(질문 30~50토큰) 임베딩은 text-embedding-3-small에서도 충분한 의미 분리가 가능합니다. n8n 노드 호환성과 운영 단순성을 우선 고려했습니다." |
+| "3자 방 구성은 왜 없나요?" | "PoC 범위 내에서는 Knox API 직접 통합이 불가하여, 현업 응대 흐름을 정적 메시지로 표현했습니다. 실서비스 전환 시 Knox API + 담당자 매핑 테이블(Supabase)로 구현 가능합니다." |
 
 ---
 
 ## 10. 구현 체크리스트 (Cursor 작업용)
 
-### Backend (Supabase + n8n)
-- [ ] Supabase 프로젝트 생성 + pgvector 확장 활성화
-- [ ] §4-1 `qa_pairs` 테이블 마이그레이션 실행
-- [ ] §4-1 HNSW 인덱스 + department 인덱스 생성
-- [ ] §4-2 `match_documents` RPC 함수 생성
-- [ ] 시드 Q-A 페어 30~50건 작성 (인터뷰 기반 더미 데이터)
-- [ ] n8n Webhook 엔드포인트 2개 생성 (knox-message, knox-wiki-add)
-- [ ] **워크플로우 A 구축 (Scene 1) — 8개 노드**
-  - [ ] Webhook → Set Node (정규화) → Embeddings → Supabase Vector Store (Get Many)
-  - [ ] IF Node (threshold 0.85)
-  - [ ] Answer Agent (TRUE 분기) → HTTP Request
-  - [ ] Not Found Set Node (FALSE 분기) → HTTP Request
-- [ ] **워크플로우 B 구축 (Wiki 적재) — 6개 노드**
-  - [ ] Webhook → Summarize Agent (Claude Haiku)
-  - [ ] Set Node (metadata 조립)
-  - [ ] Embeddings → Supabase Vector Store (Insert Documents)
-  - [ ] Respond to Webhook
-- [ ] 시드 데이터 임베딩 일괄 적재 (워크플로우 B를 일회용 실행)
+### Backend (Supabase + n8n) — 현재 상태 반영
 
-### Frontend (Next.js + 기존 목업)
-- [ ] 기존 Knock Messenger 목업 그대로 활용 — `data.jsx`만 시나리오 데이터로 교체
-- [ ] Next.js 검수 콘솔 페이지 (`/console`) — Supabase Realtime 구독
-  - [ ] Action A 모드 UI (AI 초안 + 신뢰도 + 소스 + 발송 버튼)
-  - [ ] Action B 모드 UI ("AI 답변 보류" + 직접 응대 버튼)
-- [ ] Next.js Wiki 적재 페이지 (`/wiki-add`) — 기존 `wiki-add.html` 자리 대체
-  - [ ] Summarize Agent 결과 미리보기 + 편집
-  - [ ] 부서·태그 선택
-  - [ ] [Wiki에 추가] 버튼 → 워크플로우 B 호출
-- [ ] 보안 명세 카드 패널 컴포넌트 (콘솔 한 켠)
-- [ ] Vercel 배포 + 도메인 설정
+- [x] Supabase 프로젝트 생성 (`scmlaiiypectfoboejam.supabase.co`)
+- [x] `.env.local` 환경변수 설정 완료 (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY)
+- [ ] ⚠️ **최우선 블로커** — §4-1 `qa_pairs` 테이블 마이그레이션 실행 (SQL Editor)
+- [ ] ⚠️ **최우선 블로커** — §4-1 HNSW 인덱스 + department 인덱스 생성
+- [ ] ⚠️ **최우선 블로커** — §4-2 `match_documents` RPC 함수 생성 및 SELECT 테스트
+- [ ] 시드 Q-A 페어 30~50건 작성 (인터뷰 기반 더미 데이터)
+- [x] n8n 워크플로우 A 구축 완료 (ID: `qGddk1phr96Kuz6t`, Active)
+- [x] n8n 워크플로우 B 구축 완료 (ID: `Lxtjx8UE6Hbxfvko`, Active)
+- [ ] n8n 워크플로우 A Supabase credentials 연결 상태 확인 (n8n 대시보드)
+- [ ] 시드 데이터 임베딩 일괄 적재 (워크플로우 B 일회용 실행)
+
+### Frontend (Next.js + 기존 목업) — 현재 상태 반영
+
+- [x] Knock Messenger 목업 배포 완료 (https://knock-knox-messenger.vercel.app/Knock%20Messenger.html) · 모바일형
+- [x] 우클릭 → "위키에 추가하기" 컨텍스트 메뉴 구현 완료 (`chat-room.jsx`)
+- [x] `data.jsx` — `KNOCK_CONFIG` (Webhook URL) 추가 완료
+- [x] `data.jsx` — Scene 1(c_mau) / Scene 2(c_rookie) 시나리오 데이터 작성 완료
+- [ ] `chat-room.jsx` — wiki-add URL 교체 (`wiki-add.html` → `console/wiki/add` URL)
+- [x] Next.js 검수 콘솔 (`/console`) 배포 완료 (https://knock-knox-console.vercel.app/)
+- [ ] 검수 콘솔 — Action A·B 분기 UI 완성 (Supabase Realtime 구독)
+- [x] Next.js Wiki 적재 페이지 (`/wiki/add`) — `console/app/wiki/add/page.tsx` 실제 구현체 존재
+- [ ] 보안 명세 카드 패널 컴포넌트 (콘솔 내)
+- [ ] `data.jsx` `useTestWebhook: false` 전환 (데모 당일)
 
 ### 데모 준비
-- [ ] Scene 1 End-to-End 시연 (모니모 MAU 쿼리)
-- [ ] Scene 2 End-to-End 시연 (Claude API 키 → AI 미응답 → 현업 응대 → Wiki 적재 → 재시연으로 매칭)
+
+- [ ] Scene 1 End-to-End 시연 (모니모 MAU 쿼리) — Supabase 시드 적재 후 가능
+- [ ] Scene 2 End-to-End 시연 (Claude API 키 → AI 미응답 → Wiki 적재 → 재시연으로 매칭)
 - [ ] 임계점 튜닝 (0.80~0.90 P/R 곡선)
 - [ ] 발표용 슬라이드 ↔ 실 구현 정합성 검증
 - [ ] 백업 영상 녹화 (네트워크 이슈 대비)
@@ -823,7 +843,7 @@ INSERT INTO qa_pairs (content, metadata) VALUES (
 
 ## 11. 주의사항 & 원칙
 
-1. **디자인 가이드 절대 준수** — `Knock Messenger.html` 및 `*.jsx` 컴포넌트의 UI 골격/테마 토큰 수정 금지. 콘텐츠는 `data.jsx`에서만 변경.
+1. **디자인 가이드 절대 준수** — `Knock Messenger.html` 및 `*.jsx`, `android-frame.jsx`의 UI 골격/테마 토큰 수정 금지. 콘텐츠는 `data.jsx`에서만 변경.
 
 2. **단일 스택 유지** — LangGraph, 외부 LangChain Python 서버 등 추가 프레임워크 도입 금지. n8n 내장 LangChain 노드로만 구현.
 
@@ -831,17 +851,19 @@ INSERT INTO qa_pairs (content, metadata) VALUES (
 
 4. **함수명은 `match_documents`** — n8n Vector Store 노드 기본 컨벤션. 변경 시 노드 설정에서 명시 필요 → 디버깅 비용 ↑.
 
-5. **인덱스는 HNSW** — IVFFlat 절대 사용 금지. 점진 INSERT·소규모 데이터에 부적합.
+5. **인덱스는 HNSW** — IVFFlat 절대 사용 금지.
 
 6. **Confidence 분기는 n8n IF 노드** — Agent 프롬프트 내부에 숨기지 않음. 시각적 투명성 확보.
 
-7. **Wiki 적재는 staff-initiated** — 자동 적재 금지. 현업이 명시적으로 "위키에 추가하기"를 누른 경우에만 임베딩 → 적재 (보안 게이트키핑).
+7. **Wiki 적재는 staff-initiated** — 자동 적재 금지. 현업이 명시적으로 "위키에 추가하기"를 누른 경우에만 임베딩 → 적재.
 
-8. **인간 책임 명시** — UI/UX에 "AI 초안", "현업 검수 필요" 라벨 명시. 발송 버튼은 현업만 누를 수 있음. **Validation Agent 부재로 이 원칙이 더 강조됨**.
+8. **인간 책임 명시** — UI/UX에 "AI 초안", "현업 검수 필요" 라벨 명시. 발송 버튼은 현업만 누를 수 있음.
 
-9. **임베딩 모델 고정** — `text-embedding-3-small (1536차원)`. 차원이 고정되므로 도중 변경 불가. 본선 시작 전 확정.
+9. **임베딩 모델 고정** — `text-embedding-3-small (1536차원)`. 차원이 고정되므로 도중 변경 불가.
 
-10. **임계값 0.85** — 본선 Day 3 QA에서 시드 데이터로 P/R 곡선 확인 후 0.80~0.90 사이 조정. 너무 낮으면 오매칭, 너무 높으면 Action A 발동률 저하.
+10. **임계값 0.85** — 본선 Day 3 QA에서 시드 데이터로 P/R 곡선 확인 후 0.80~0.90 사이 조정.
+
+11. **wiki-add URL** — `chat-room.jsx`의 우클릭 이벤트 목적지를 반드시 `console/wiki/add` URL로 교체 후 데모 진행.
 
 ---
 
@@ -879,7 +901,10 @@ JSON 반환:
 }
 ```
 
-### A-2. Summarize Agent (Drag&Paste → Wiki 적재)
+### A-2. Summarize Agent (선택 — 워크플로우 B에 추가 시)
+
+> ⚠️ **[v2.2 상태 주석]** 현재 워크플로우 B에는 Summarize Agent가 없습니다. `page.tsx`에서 Q-A를 분리하여 전송합니다. 추후 n8n 워크플로우 B에 Haiku 노드를 추가할 경우 아래 프롬프트를 사용합니다.
+
 ```
 다음 사내 메신저 대화를 Wiki에 적재할 수 있도록 {question, answer} 형태로 요약하세요.
 
@@ -902,8 +927,6 @@ JSON 반환:
 }
 ```
 
-> **v2.1 변경**: Validation Agent 프롬프트 (v2 부록 A-2) 제거됨.
-
 ---
 
 ## 부록 B. n8n 노드 설정 치트시트
@@ -913,12 +936,12 @@ JSON 반환:
 Operation Mode: Get Many
 Table Name: qa_pairs
 Query Name: match_documents   (또는 빈칸 → 기본값 자동 인식)
-Prompt: {{ $('Set Node').item.json.question_normalized }}
+Prompt: {{ $('질문 정규화').item.json.question_normalized }}
 Limit: 3
 
 Options:
   Metadata Filter (JSON, 선택):
-    { "department": "{{ $('Webhook').item.json.sender_dept }}" }
+    { "department": "{{ $('Webhook Trigger').item.json.sender_dept }}" }
 
 Sub-node 연결:
   Embedding: Embeddings OpenAI (text-embedding-3-small)
@@ -936,8 +959,7 @@ Sub-node 연결:
       "tags": ["MAU", "SQL", "모니모"]
     },
     "score": 0.89
-  },
-  ...
+  }
 ]
 ```
 
@@ -960,53 +982,13 @@ Sub-node 연결:
         "tags":              {{ JSON.stringify($json.tags) }},
         "archived_at":       "{{ $now.toISO() }}"
       }
-  
+
   Embedding: Embeddings OpenAI (text-embedding-3-small)
 ```
 
-> **핵심**: `answer_text`를 별도 컬럼이 아닌 **metadata 안에** 저장. 이게 n8n 표준 노드와 호환되는 유일한 방법.
+> **핵심**: `answer_text`를 별도 컬럼이 아닌 **metadata 안에** 저장.
 
-### B-3. 질문 정규화 Set Node (Function Item)
-```javascript
-const raw = $input.first().json.question;
-// 정규화: 공백 통일, 특수문자 제거, 핵심 명사 보존
-const normalized = raw
-  .trim()
-  .replace(/\s+/g, ' ')
-  .replace(/[^\w가-힣\s]/g, ' ')
-  .replace(/\s+/g, ' ');
-
-return {
-  question_text: raw,
-  question_normalized: normalized,
-  sender_dept:  $input.first().json.sender_dept,
-  sender_name:  $input.first().json.sender_name,
-  channel_id:   $input.first().json.channel_id,
-};
-```
-
-### B-4. Q-Q 매칭 결과 가공 Function Node (Answer Agent 입력 준비)
-```javascript
-// Supabase Vector Store(Get Many) 출력을 Answer Agent 입력으로 변환
-const results = $input.first().json;  // 배열 [{pageContent, metadata, score}, ...]
-const top = results[0];                // 1순위 매칭
-
-return {
-  current_question:   $('Set Node').item.json.question_normalized,
-  matched_question:   top.pageContent,
-  matched_answer:     top.metadata.answer_text,
-  matched_department: top.metadata.department,
-  matched_responder:  top.metadata.responder_name,
-  similarity:         top.score,
-  sources: results.map(r => ({
-    qa_pair_id:       r.metadata.id ?? null,
-    matched_question: r.pageContent,
-    similarity:       r.score
-  }))
-};
-```
-
-### B-5. IF Node 설정 (유사도 임계점 분기)
+### B-3. IF Node 설정 (유사도 임계점 분기)
 ```
 Condition Type: Number
 Value 1: {{ $json[0].score }}
@@ -1017,18 +999,24 @@ TRUE  분기 → Action A (Answer Agent)
 FALSE 분기 → Action B (Field Direct)
 ```
 
+### B-4. 데모 당일 URL 전환
+```javascript
+// messenger/data.jsx 에서:
+useTestWebhook: false,  // ← true → false 로 변경 후 강력 새로고침 (Ctrl+Shift+R)
+```
+
 ---
 
 ## 부록 C. 데이터 구조 요약 (한눈에 보기)
 
 ```
-qa_pairs (단일 통합 테이블)
+qa_pairs (단일 통합 테이블) — ⚠️ 원격 미생성, §4-1 SQL 실행 필요
 ├─ id              : BIGSERIAL PK (자동 증가)
-├─ content         : TEXT — 정규화된 질문 (← 임베딩 대상, LangChain 표준 컬럼)
+├─ content         : TEXT — 정규화된 질문 (임베딩 대상)
 ├─ metadata        : JSONB
-│   ├─ answer_text         : 답변 본문 (← 핵심: 답변은 metadata 안에)
-│   ├─ question_original   : 원본 질문 텍스트
-│   ├─ department          : 답변 부서 (필터링용, 전용 인덱스 있음)
+│   ├─ answer_text         : 답변 본문
+│   ├─ question_original   : 원본 질문
+│   ├─ department          : 답변 부서 (전용 인덱스)
 │   ├─ responder_id        : 답변자 ID
 │   ├─ responder_name      : 답변자 이름
 │   ├─ tags                : 태그 배열
@@ -1037,35 +1025,45 @@ qa_pairs (단일 통합 테이블)
 ├─ created_at      : 적재 시각
 └─ updated_at      : 마지막 업데이트
 
-
 인덱스
 ├─ qa_pairs_embedding_hnsw_idx   : HNSW (m=16, ef_construction=64)
 └─ qa_pairs_department_idx       : ((metadata->>'department'))
 
-
-match_documents RPC (LangChain/n8n 표준)
+match_documents RPC
   IN:  query_embedding, match_count (기본 3), filter (기본 {})
-  OUT: [{id, content(=과거질문), metadata, similarity}, ...]
-       └ similarity = 1 - (embedding <=> query_embedding)
-       └ filter = metadata @> filter (JSONB containment)
+  OUT: [{id, content, metadata, similarity}, ...]
+
+n8n 워크플로우
+├─ 워크플로우 A (Scene 1): ID=qGddk1phr96Kuz6t · Active · 13노드
+│   URL: https://wontaeryu.app.n8n.cloud/workflow/qGddk1phr96Kuz6t
+│   Webhook: POST /webhook/knox-message
+└─ 워크플로우 B (Scene 2): ID=Lxtjx8UE6Hbxfvko · Active · 10노드
+    URL: https://wontaeryu.app.n8n.cloud/workflow/Lxtjx8UE6Hbxfvko
+    Webhook: POST /webhook/knox-wiki-add
+
+Frontend
+├─ Knox 목업 (모바일형): https://knock-knox-messenger.vercel.app/Knock%20Messenger.html
+├─ 검수 콘솔: https://knock-knox-console.vercel.app/
+└─ Wiki 적재 (정본): console/app/wiki/add/page.tsx
+   URL: https://knock-knox-console.vercel.app/wiki/add
 ```
 
 ---
 
-## 부록 D. PPTX 발표 자료 수정 포인트 (v1 슬라이드 → v2.1 반영)
+## 부록 D. PPTX 발표 자료 수정 포인트 (v2.2 반영)
 
-| 슬라이드 영역 | v1 (기존) | v2.1 (반영) |
+| 슬라이드 영역 | 기존 | v2.2 반영 |
 |---|---|---|
 | Slide 13~14 "에이전트 워크플로우" | RAG 기반 유사도 | **Q-Q RAG 기반 질문 유사도** 명시 |
 | Slide 15 "검색된 Wiki 청크" | [Doc1, Doc2, Doc3] | **[Past Question 1, 2, 3]** — Q-Q 명시 |
 | Slide 16 "Database" | 질의응답 이력 데이터 저장/관리 | **질문 임베딩 + 답변 metadata 분리 저장 (Q-Q 구조)** |
-| Slide 18~19 "데이터 활용 및 보안" | 보안 등급 차단 (GREEN/YELLOW/RED 자동 분류) | **PoC 범위 한정 + 실서비스 시 보강 항목 명시** — 보안 명세 카드 화면 노출 |
-| Slide 21~22 "구현 로드맵 / R&R" | (기존 유지) | **Day 2의 RAG 파이프라인 = Q-Q 임베딩 적재**로 라벨 수정 |
-| Slide 26 "n8n 노드 구성안" | 6개 노드 (Validation 포함) | **8개 노드 (Validation Agent 제거)** — IF Node 분기 강조 |
+| Slide 18~19 "데이터 활용 및 보안" | 보안 등급 차단 자동 분류 | **PoC 범위 한정 + 실서비스 시 보강 항목 명시** |
+| Slide 21~22 "구현 로드맵 / R&R" | (기존) | **Day 2의 RAG 파이프라인 = Q-Q 임베딩 적재** |
+| Slide 26 "n8n 노드 구성안" | 6개 노드 (설계) | **워크플로우 A 13개 / B 10개 (실제 배포 기준)** |
 
 **발표 핵심 메시지 (한 줄)**:
 > "우리는 답변 문서를 검색하는 일반 RAG가 아니라, **'과거에 같은 질문이 있었는가'를 묻는 Q-Q RAG**로 사내 업무 문의 도메인 특성을 정확히 반영했습니다."
 
 ---
 
-**문서 끝.** 본 v2.1 명세서는 본선 3일 스프린트 동안의 단일 작업 지침서입니다. Cursor 컨텍스트에 그대로 포함하여 vibe-coding 진행 가능합니다.
+**문서 끝.** 본 v2.2 명세서는 2026-05-17 Cursor 코드베이스 실황 확인 + n8n MCP 직접 조회 결과를 반영한 최신 작업 지침서입니다. Cursor 컨텍스트에 그대로 포함하여 vibe-coding 진행 가능합니다.
