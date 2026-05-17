@@ -60,6 +60,8 @@ const AVATAR_FG = '#7FA9F4';
 const PEOPLE = {
   samsung: { id: 'samsung', name: '김삼성',  initial: '김', dept: '서비스개발팀',   status: 'online' },
   boan:    { id: 'boan',    name: '김보안',  initial: '김', dept: '정보보호실',     status: 'online' },
+  jungpro: { id: 'jungpro', name: 'Knock_Knox',  initial: 'K', dept: '삼성금융 지식 Wiki', status: 'online' },
+  knoxAi:  { id: 'knox_ai_agent', name: 'Knock_Knox', initial: 'K', dept: '삼성금융 지식 Wiki', status: 'online' },
   moni:    { id: 'moni',    name: '정모니',  initial: '정', dept: '모니모사업팀',   status: 'online' },
   ryu:     { id: 'ryu',     name: '류원태',  initial: '류', dept: '모니모마케팅팀', status: 'online' },
   wontae:  { id: 'wontae',  name: '류원태',  initial: '류', dept: '모니모마케팅팀', status: 'online' },
@@ -71,9 +73,9 @@ const CHATS = [
   {
     id: 'c_mau',
     type: 'dm',
-    person: PEOPLE.samsung,
-    title: '김삼성',
-    lastMessage: '모니모 MAU 구하는 SQL 쿼리 알려주세요',
+    person: PEOPLE.jungpro,
+    title: 'Knock_Knox',
+    lastMessage: 'Knock_Knox: SC_MONIMO_USER_STAT 기준 MAU 쿼리 초안을 찾았습니다.',
     time: '16:42',
     unread: 1,
     secure: false,
@@ -121,9 +123,9 @@ const MESSAGES = {
   // Scene 1 — Action A 시연용 (AI 초안 생성 흐름)
   c_mau: [
     { id: 'm_mau_sys', from: 'system', kind: 'system', text: '암호화된 대화방입니다.' },
-    { id: 'm_mau_1', from: PEOPLE.samsung, text: '안녕하세요! 업무 관련해서 여쭤볼게 있어서요.', time: '16:38' },
-    { id: 'm_mau_2', from: PEOPLE.samsung, text: '모니모 MAU 구하는 SQL 쿼리 알려주세요. SC_MONIMO_USER_STAT 테이블 쓰면 된다고 하던데 정확한 쿼리를 모르겠어요.', time: '16:39' },
-    { id: 'm_mau_3', from: 'me', text: '잠깐만요, 확인해볼게요 🙏', time: '16:40', read: 1 },
+    { id: 'm_mau_1', from: 'me', text: 'Knock_Knox 안녕, 혹시 모니모 개발계를 이용하려면 어떤 wifi 정보를 이용하면 될까?', time: '16:38', read: 1 },
+    { id: 'm_mau_2', from: 'me', text: '정확한 SSID 정보와 wifi password를 모르겠어.', time: '16:39', read: 1 },
+    { id: 'm_mau_3', from: PEOPLE.knoxAi, text: '5일 전의 유사한 질문과 그에 대한 답변을 확인했습니다. 아래 정보를 참고해주세요. Monimo_WIFI_info : monimo_dev_wifi password: 개별적으로 공유 받은 비밀번호 입력', time: '16:42' },
   ],
 
   // Scene 2 — Action B 시연용 (AI 미응답 → 직접 응대 → Wiki 적재 → 플라이휠)

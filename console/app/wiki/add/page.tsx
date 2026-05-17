@@ -8,7 +8,7 @@ import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 const DEFAULT_WIKI_WEBHOOK_URL =
-  'https://wontaeryu.app.n8n.cloud/webhook-test/knox-wiki-add';
+  'https://wontaeryu.app.n8n.cloud/webhook/knox-wiki-add';
 
 const DEPARTMENTS = [
   '모니모마케팅팀',
